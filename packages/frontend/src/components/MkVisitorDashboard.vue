@@ -87,8 +87,11 @@ function signin() {
 }
 
 function signup() {
+	const params = new URLSearchParams(window.location.search);
+	const inviteCode = params.get('invite') ?? '';
 	const { dispose } = os.popup(XSignupDialog, {
 		autoSet: true,
+		initialInvitationCode: inviteCode,
 	}, {
 		closed: () => dispose(),
 	});

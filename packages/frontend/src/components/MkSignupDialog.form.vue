@@ -95,8 +95,10 @@ import { login } from '@/accounts.js';
 
 const props = withDefaults(defineProps<{
 	autoSet?: boolean;
+	initialInvitationCode?: string;
 }>(), {
 	autoSet: false,
+	initialInvitationCode: '',
 });
 
 const emit = defineEmits<{
@@ -115,7 +117,7 @@ const testcaptcha = ref<Captcha | undefined>();
 const username = ref<string>('');
 const password = ref<string>('');
 const retypedPassword = ref<string>('');
-const invitationCode = ref<string>('');
+const invitationCode = ref<string>(props.initialInvitationCode);
 const email = ref('');
 const usernameState = ref<null | 'wait' | 'ok' | 'unavailable' | 'error' | 'invalid-format' | 'min-range' | 'max-range'>(null);
 const emailState = ref<null | 'wait' | 'ok' | 'unavailable:used' | 'unavailable:format' | 'unavailable:disposable' | 'unavailable:banned' | 'unavailable:mx' | 'unavailable:smtp' | 'unavailable' | 'error'>(null);
