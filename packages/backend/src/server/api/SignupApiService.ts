@@ -18,6 +18,7 @@ import { MiLocalUser } from '@/models/User.js';
 import { FastifyReplyError } from '@/misc/fastify-reply-error.js';
 import { bindThis } from '@/decorators.js';
 import { L_CHARS, secureRndstr } from '@/misc/secure-rndstr.js';
+import { normalizeInviteCode } from '@/misc/generate-invite-code.js';
 import { SigninService } from './SigninService.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
@@ -137,7 +138,7 @@ export class SignupApiService {
 			}
 
 			ticket = await this.registrationTicketsRepository.findOneBy({
-				code: invitationCode,
+				code: normalizeInviteCode(invitationCode),
 			});
 
 			if (ticket == null || ticket.usedById != null) {

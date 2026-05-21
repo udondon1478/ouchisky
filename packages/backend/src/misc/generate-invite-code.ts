@@ -23,3 +23,14 @@ export function generateInviteCode(): string {
 
 	return code + uniqueId.reverse().join('');
 }
+
+/**
+ * 入力された招待コードを照合用に正規化する。
+ * 全角→半角(NFKC)変換・大文字化したうえで、英数字以外（ハイフン・空白等）を除去する。
+ * 表示用にハイフン区切りで提示したコード（例 `XXXX-XXXX-XXXXX`）を
+ * ユーザーがそのまま手入力しても、また全角IMEで打ってしまっても照合が通るようにするためのもの。
+ * 生成されるコードは {@link CHARS}（大文字英数字のみ）で構成されるため、この正規化は安全。
+ */
+export function normalizeInviteCode(input: string): string {
+	return input.normalize('NFKC').toUpperCase().replace(/[^0-9A-Z]/g, '');
+}
