@@ -31,6 +31,53 @@ const accessDenied = {
 	id: '56f35758-7dd5-468b-8439-5d6fb8ec9b8e',
 };
 
+/**
+ * 完全クローズドモード (meta.ugcVisibilityForVisitor === 'none') のとき、
+ * 未ログイン (匿名) からのアクセスを許可する API エンドポイント名のホワイトリスト。
+ * - クライアント起動 / ログイン補助 / アカウント作成 (招待制) / アプリ認証 (MiAuth) に必要なもの
+ * - ショーケース表示に必要な notes/featured のみ (publicShowcaseUserId の公開ノートに限定)
+ * これ以外の匿名アクセスはすべて拒否され、ノート等が外部へ漏れない。
+ * 注: ログイン中のクライアントは misskeyApiGet も認証付きで送るため (frontend 改修済)、
+ *     charts/* や hashtags/trend 等の GET 系エンドポイントはこのゲートに掛からない。
+ * 注: signin / signin-flow / signup 等は endpoints レジストリ外の専用ルートのため
+ *     この call() を通らず、本ホワイトリストの影響を受けない (ログインは常に可能)。
+ */
+const ANONYMOUS_ALLOWED_ENDPOINTS = new Set<string>([
+	// クライアント起動
+	'meta',
+	'emojis',
+	'endpoints',
+	'endpoint',
+	'server-info',
+	'ping',
+	'get-avatar-decorations',
+	'announcements',
+	'announcements/show',
+	'federation/instances',
+	// アプリ認証 (MiAuth) / OAuth
+	'auth/session/generate',
+	'auth/session/show',
+	'auth/session/userkey',
+	'app/create',
+	'app/show',
+	// アカウント作成 (招待制) / メール確認 / パスワードリセット
+	'username/available',
+	'email-address/available',
+	'request-reset-password',
+	'reset-password',
+	'verify-email',
+	// ショーケース: 未ログインに見せるのはトップページのショーケースタイムラインのみ。
+	// notes/featured が publicShowcaseUserId の公開ノートだけを返す (各エンドポイント側で限定)。
+	// users/notes は匿名へは開けない (プロフィール/ユーザーTLの直接参照を遮断)。
+	// users/show はログイン時のフロントエンドが必要とするため開けるが、
+	// userId 直接指定にはショーケース制限を残し、username 検索のみ許可する (エンドポイント側で制限)。
+	'notes/featured',
+	'users/show',
+	// 未ログイントップの「サーバーアクティビティ」表示用 (集計値のみ・ノート本文は含まない)
+	'stats',
+	'charts/active-users',
+]);
+
 @Injectable()
 export class ApiCallService implements OnApplicationShutdown {
 	private logger: Logger;
@@ -310,6 +357,17 @@ export class ApiCallService implements OnApplicationShutdown {
 
 		if (ep.meta.secure && !isSecure) {
 			throw new ApiError(accessDenied);
+		}
+
+		// 完全クローズドモード: 未ログインはホワイトリスト (起動/ログイン/ショーケース) 以外を一切拒否する。
+		// これにより notes/replies・channels/timeline・users/search 等からの匿名閲覧を塞ぐ。
+		if (user == null && this.meta.ugcVisibilityForVisitor === 'none' && !ANONYMOUS_ALLOWED_ENDPOINTS.has(ep.name)) {
+			throw new ApiError({
+				message: 'Sign-in is required to access this endpoint on this instance.',
+				code: 'SIGNIN_REQUIRED',
+				id: 'b6f0d1a4-0d2e-4a4d-9d2b-3c1f9a6e8c10',
+				httpStatusCode: 401,
+			});
 		}
 
 		if (ep.meta.limit) {

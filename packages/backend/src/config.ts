@@ -109,6 +109,13 @@ type Source = {
 	deactivateAntennaThreshold?: number;
 	pidFile: string;
 
+	/**
+	 * 完全クローズドモード (ugcVisibilityForVisitor: none) のとき、
+	 * 未ログイン訪問者へ公開する単一ユーザー (ショーケース) の ID。
+	 * 未設定なら未ログインへは一切のノートを公開しない。
+	 */
+	publicShowcaseUserId?: string;
+
 	logging?: {
 		sql?: {
 			disableQueryTruncation?: boolean,
@@ -212,6 +219,7 @@ export type Config = {
 	perUserNotificationsMaxCount: number;
 	deactivateAntennaThreshold: number;
 	pidFile: string;
+	publicShowcaseUserId: string | undefined;
 };
 
 export type FulltextSearchProvider = 'sqlLike' | 'sqlPgroonga' | 'meilisearch';
@@ -339,6 +347,7 @@ export function loadConfig(): Config {
 		perUserNotificationsMaxCount: config.perUserNotificationsMaxCount ?? 500,
 		deactivateAntennaThreshold: config.deactivateAntennaThreshold ?? (1000 * 60 * 60 * 24 * 7),
 		pidFile: config.pidFile,
+		publicShowcaseUserId: config.publicShowcaseUserId,
 		logging: config.logging,
 	};
 }

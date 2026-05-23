@@ -7,6 +7,7 @@ import { In, IsNull } from 'typeorm';
 import { Inject, Injectable } from '@nestjs/common';
 import type { MiMeta, UsersRepository } from '@/models/_.js';
 import type { MiUser } from '@/models/User.js';
+import type { Config } from '@/config.js';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
 import { RemoteUserResolveService } from '@/core/RemoteUserResolveService.js';
@@ -106,6 +107,9 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		@Inject(DI.meta)
 		private serverSettings: MiMeta,
 
+		@Inject(DI.config)
+		private config: Config,
+
 		@Inject(DI.usersRepository)
 		private usersRepository: UsersRepository,
 
@@ -121,6 +125,12 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			//	throw new ApiError(meta.errors.noSuchUser);
 			//}
 
+			// 完全クローズドモード: 未ログインへはショーケースユーザーのみ公開する
+			const showcaseOnlyForVisitor = me == null && this.serverSettings.ugcVisibilityForVisitor === 'none';
+			if (showcaseOnlyForVisitor && this.config.publicShowcaseUserId == null) {
+				throw new ApiError(meta.errors.noSuchUser);
+			}
+
 			let user;
 
 			const isModerator = await this.roleService.isModerator(me);
@@ -129,6 +139,12 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			}
 
 			if ('userIds' in ps) {
+				if (showcaseOnlyForVisitor) {
+					const allowed = ps.userIds.filter(id => id === this.config.publicShowcaseUserId);
+					if (allowed.length === 0) return [];
+					ps.userIds = allowed;
+				}
+
 				if (ps.userIds.length === 0) {
 					return [];
 				}
@@ -171,6 +187,12 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				}
 
 				if (user == null || (!isModerator && user.isSuspended)) {
+					throw new ApiError(meta.errors.noSuchUser);
+				}
+
+				// 完全クローズドモード: userId / userIds による直接参照はショーケースユーザーのみ許可。
+				// username による検索（ログイン時のフロントエンドなど）は許可する。
+				if (showcaseOnlyForVisitor && ('userId' in ps || 'userIds' in ps) && user.id !== this.config.publicShowcaseUserId) {
 					throw new ApiError(meta.errors.noSuchUser);
 				}
 

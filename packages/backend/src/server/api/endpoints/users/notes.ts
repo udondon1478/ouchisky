@@ -13,6 +13,7 @@ import { CacheService } from '@/core/CacheService.js';
 import { IdService } from '@/core/IdService.js';
 import { QueryService } from '@/core/QueryService.js';
 import { MiLocalUser } from '@/models/User.js';
+import type { Config } from '@/config.js';
 import { FanoutTimelineEndpointService } from '@/core/FanoutTimelineEndpointService.js';
 import { FanoutTimelineName } from '@/core/FanoutTimelineService.js';
 import { ApiError } from '@/server/api/error.js';
@@ -76,6 +77,9 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		@Inject(DI.meta)
 		private serverSettings: MiMeta,
 
+		@Inject(DI.config)
+		private config: Config,
+
 		@Inject(DI.notesRepository)
 		private notesRepository: NotesRepository,
 		private noteEntityService: NoteEntityService,
@@ -89,6 +93,25 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			const untilId = ps.untilId ?? (ps.untilDate ? this.idService.gen(ps.untilDate!) : null);
 			const sinceId = ps.sinceId ?? (ps.sinceDate ? this.idService.gen(ps.sinceDate!) : null);
 			const isSelf = me && (me.id === ps.userId);
+
+			// 完全クローズドモード: 未ログインはショーケースユーザーの公開ノートのみ閲覧可
+			if (me == null && this.serverSettings.ugcVisibilityForVisitor === 'none') {
+				if (this.config.publicShowcaseUserId == null || ps.userId !== this.config.publicShowcaseUserId) {
+					return [];
+				}
+				const showcaseNotes = await this.queryService.makePaginationQuery(this.notesRepository.createQueryBuilder('note'), sinceId, untilId)
+					.andWhere('note.userId = :userId', { userId: ps.userId })
+					.andWhere('note.visibility = \'public\'')
+					.andWhere('note.channelId IS NULL')
+					.innerJoinAndSelect('note.user', 'user')
+					.leftJoinAndSelect('note.reply', 'reply')
+					.leftJoinAndSelect('note.renote', 'renote')
+					.leftJoinAndSelect('reply.user', 'replyUser')
+					.leftJoinAndSelect('renote.user', 'renoteUser')
+					.limit(ps.limit)
+					.getMany();
+				return await this.noteEntityService.packMany(showcaseNotes, me);
+			}
 
 			if (ps.withReplies && ps.withFiles) throw new ApiError(meta.errors.bothWithRepliesAndWithFiles);
 

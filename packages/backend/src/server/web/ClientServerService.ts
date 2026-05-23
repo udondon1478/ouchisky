@@ -458,6 +458,12 @@ export class ClientServerService {
 				requireSigninToViewContents: false,
 			});
 
+			// 完全クローズドモード: フィード (RSS/Atom/JSON) は外部購読/スクレイプ経路なので
+			// ショーケースユーザーも含め一切出さない (匿名へのショーケースはトップページの notes/featured のみ)
+			if (user != null && this.meta.ugcVisibilityForVisitor === 'none') {
+				return null;
+			}
+
 			return user && await this.feedService.packFeed(user);
 		};
 
@@ -797,6 +803,8 @@ export class ClientServerService {
 
 			if (user == null) return;
 			if (user.host != null) return;
+			// 完全クローズドモード: 埋め込みタイムラインは外部参照経路なので一切出さない
+			if (this.meta.ugcVisibilityForVisitor === 'none') return;
 
 			const _user = await this.userEntityService.pack(user);
 
@@ -823,6 +831,8 @@ export class ClientServerService {
 			if (note == null) return;
 			if (['specified', 'followers'].includes(note.visibility)) return;
 			if (note.userHost != null) return;
+			// 完全クローズドモード: 埋め込みノートは外部参照経路なので一切出さない
+			if (this.meta.ugcVisibilityForVisitor === 'none') return;
 
 			const _note = await this.noteEntityService.pack(note, null, { detail: true });
 

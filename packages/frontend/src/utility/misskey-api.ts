@@ -71,6 +71,14 @@ export function misskeyApiGet<
 	endpoint: E,
 	data: P = {} as any,
 ): Promise<_ResT> {
+	// 完全クローズドインスタンス対応:
+	// misskeyApiGet は本来クレデンシャルを送らないキャッシュ可能な公開 GET だが、
+	// ugcVisibilityForVisitor=none の匿名ゲート下ではログイン中でも匿名 GET が拒否される
+	// (charts/* や hashtags/trend など)。そのためログイン中は認証付きリクエストへフォールバックする。
+	if ($i) {
+		return misskeyApi<_ResT, E, P>(endpoint, data);
+	}
+
 	pendingApiRequestsCount.value++;
 
 	const onFinally = () => {

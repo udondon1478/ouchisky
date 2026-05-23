@@ -4,7 +4,8 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotesRepository } from '@/models/_.js';
+import type { MiMeta, NotesRepository } from '@/models/_.js';
+import type { Config } from '@/config.js';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { DI } from '@/di-symbols.js';
@@ -50,12 +51,43 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		@Inject(DI.notesRepository)
 		private notesRepository: NotesRepository,
 
+		@Inject(DI.meta)
+		private serverSettings: MiMeta,
+
+		@Inject(DI.config)
+		private config: Config,
+
 		private cacheService: CacheService,
 		private noteEntityService: NoteEntityService,
 		private featuredService: FeaturedService,
 		private queryService: QueryService,
 	) {
 		super(meta, paramDef, async (ps, me) => {
+			// 完全クローズドモード: 未ログインへはショーケースユーザーの公開ノートのみ返す
+			// (未ログイン時のトップ/ウェルカムのタイムライン表示がこれを利用する)
+			if (me == null && this.serverSettings.ugcVisibilityForVisitor === 'none') {
+				if (this.config.publicShowcaseUserId == null) {
+					return [];
+				}
+				const showcaseQuery = this.notesRepository.createQueryBuilder('note')
+					.where('note.userId = :userId', { userId: this.config.publicShowcaseUserId })
+					.andWhere('note.visibility = \'public\'')
+					.andWhere('note.channelId IS NULL')
+					.innerJoinAndSelect('note.user', 'user')
+					.leftJoinAndSelect('note.reply', 'reply')
+					.leftJoinAndSelect('note.renote', 'renote')
+					.leftJoinAndSelect('reply.user', 'replyUser')
+					.leftJoinAndSelect('renote.user', 'renoteUser');
+				if (ps.untilId) {
+					showcaseQuery.andWhere('note.id < :untilId', { untilId: ps.untilId });
+				}
+				const showcaseNotes = await showcaseQuery
+					.orderBy('note.id', 'DESC')
+					.limit(ps.limit)
+					.getMany();
+				return await this.noteEntityService.packMany(showcaseNotes, me);
+			}
+
 			let noteIds: string[];
 			if (ps.channelId) {
 				noteIds = await this.featuredService.getInChannelNotesRanking(ps.channelId, 50);
