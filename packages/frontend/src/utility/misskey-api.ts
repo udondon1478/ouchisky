@@ -76,7 +76,7 @@ export function misskeyApiGet<
 	// ugcVisibilityForVisitor=none の匿名ゲート下ではログイン中でも匿名 GET が拒否される
 	// (charts/* や hashtags/trend など)。そのためログイン中は認証付きリクエストへフォールバックする。
 	if ($i) {
-		return misskeyApi<_ResT, E, P>(endpoint, data);
+		return misskeyApi(endpoint, data as any, $i.token);
 	}
 
 	pendingApiRequestsCount.value++;
